@@ -1,0 +1,80 @@
+version: '2'
+
+services:
+  rocketchat:
+    image: rocketchat/rocket.chat:5.0.1
+    restart: unless-stopped
+    volumes:
+      - ./uploads:/app/uploads
+    environment:
+      - PORT=3000
+      - ROOT_URL=http://your.domain.com
+      - MONGO_URL=mongodb://mongo:27017/rocketchat?directConnection=true
+      - MONGO_OPLOG_URL=mongodb://mongo:27017/local?directConnection=true
+      - MAIL_URL=smtp://smtp.email
+    #       - HTTP_PROXY=http://proxy.domain.com
+    #       - HTTPS_PROXY=http://proxy.domain.com
+    depends_on:
+      - mongo
+    ports:
+      - 4000:3000
+    labels:
+      - "traefik.backend=rocketchat"
+      - "traefik.frontend.rule=Host: your.domain.com"
+
+  mongo:
+    image: mongo:4.4
+    restart: unless-stopped
+    volumes:
+      - ./data/db:/data/db
+      #- ./data/dump:/dump
+    command: mongod --oplogSize 128 --replSet rs0
+    labels:
+      - "traefik.enable=false"
+
+  # this container's job is just run the command to initialize the replica set.
+  # it will run the command and remove himself (it will not stay running)
+  mongo-init-replica:
+    image: mongo:4.4
+    command: 'mongo mongo/rocketchat --eval "rs.initiate({ _id: ''rs0'', members: [ { _id: 0, host: ''localhost:27017'' } ]})"'
+    depends_on:
+      - mongo
+
+  # hubot, the popular chatbot (add the bot user first and change the password before starting this image)
+  hubot:
+    image: rocketchat/hubot-rocketchat:latest
+    restart: unless-stopped
+    environment:
+      - ROCKETCHAT_URL=rocketchat:3000
+      - ROCKETCHAT_ROOM=
+      - LISTEN_ON_ALL_PUBLIC=true
+      - ROCKETCHAT_USER=bot
+      - ROCKETCHAT_PASSWORD=botpassword
+      - BOT_NAME=bot
+      - HUBOT_LOG_LEVEL=error
+      # you can add more scripts as you'd like here, they need to be installable by npm
+      - EXTERNAL_SCRIPTS=hubot-help,hubot-links,hubot-diagnostics,hubot-google-images,hubot-schedule,hubot-file-brain
+      - HUBOT_SCHEDULE_UTC_OFFSET_FOR_CRON=+07:00
+      - FILE_BRAIN_PATH=/home/hubot/hubot-file-brain
+      - TRIGGER_BRAIN_LOAD_TIMEOUT=60
+    depends_on:
+      - rocketchat
+    labels:
+      - "traefik.enable=false"
+    volumes:
+      - ./hubot/scripts:/home/hubot/scripts
+      - ./hubot/hubot-scripts.json:/home/hubot/hubot-scripts.json
+      - ./hubot/hubot-file-brain:/home/hubot/hubot-file-brain
+    # this is used to expose the hubot port for notifications on the host on port 4001, e.g. for hubot-jenkins-notifier
+    ports:
+      - 4001:8080
+
+  #traefik:
+  #  image: traefik:latest
+  #  restart: unless-stopped
+  #  command: traefik --docker --acme=true --acme.domains='your.domain.tld' --acme.email='your@email.tld' --acme.entrypoint=https --acme.storagefile=acme.json --defaultentrypoints=http --defaultentrypoints=https --entryPoints='Name:http Address::80 Redirect.EntryPoint:https' --entryPoints='Name:https Address::443 TLS.Certificates:'
+  #  ports:
+  #    - 80:80
+  #    - 443:443
+  #  volumes:
+  #    - /var/run/docker.sock:/var/run/docker.sock

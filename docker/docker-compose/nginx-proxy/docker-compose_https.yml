@@ -1,0 +1,56 @@
+version: '3.8'
+
+services:
+  webapp:
+    image: your_docker_image
+    environment:
+      - VIRTUAL_HOST=phieudu241.ngocsensei.com
+      - VIRTUAL_PORT=3000
+      - LETSENCRYPT_HOST=phieudu241.ngocsensei.com
+      - LETSENCRYPT_EMAIL=phieudu241@mailinator.com
+    env_file: .env
+    networks:
+      - 'net'
+
+  proxy:
+    image: jwilder/nginx-proxy:alpine
+    container_name: nginx-proxy
+    restart: always
+    volumes:
+      - /var/run/docker.sock:/tmp/docker.sock:ro
+      - certs:/etc/nginx/certs:ro
+      - vhost.d:/etc/nginx/vhost.d
+      - html:/usr/share/nginx/html
+      - conf.d:/etc/nginx/conf.d
+    environment:
+      - DEFAULT_HOST=phieudu241.ngocsensei.com
+    networks:
+      - 'net'
+    ports:
+      - "443:443"
+      - "80:80"
+    labels:
+      - "com.github.jrcs.letsencrypt_nginx_proxy_companion.nginx_proxy=true"
+
+  le:
+    image: jrcs/letsencrypt-nginx-proxy-companion
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - certs:/etc/nginx/certs:rw
+      - vhost.d:/etc/nginx/vhost.d:rw
+      - html:/usr/share/nginx/html:rw
+    environment:
+      - NGINX_PROXY_CONTAINER=nginx-proxy
+    networks:
+      - 'net'
+
+volumes:
+  html:
+  dhparam:
+  vhost.d:
+  certs:
+  conf.d:
+
+networks:
+  net:
+    external: true

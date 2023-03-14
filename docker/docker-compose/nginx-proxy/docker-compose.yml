@@ -1,0 +1,15 @@
+version: "3.7"
+
+services:
+  whoami:
+    image: your_docker_image
+    environment:
+      - VIRTUAL_HOST=subdomain.example.com
+      - VIRTUAL_PORT=3000
+
+  nginx-proxy:
+    image: nginxproxy/nginx-proxy
+    ports:
+      - "80:80"
+    volumes:
+      - /var/run/docker.sock:/tmp/docker.sock:ro
