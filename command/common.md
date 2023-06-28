@@ -1,3 +1,24 @@
+# MySQL
+- Dump DB
+```shell
+sudo mysqldump -u [user] -p [database_name] > [filename].sql
+```
+- Restore DB
+```shell
+mysql -u [user] -p [database_name] < [filename].sql
+```
+
+# Mongo
+- Dump DB
+```shell
+/usr/bin/mongodump --uri "mongodb://localhost:27017/db_name?directConnection=true" --out /data/db/dump
+```
+
+- Restore DB
+```shell
+/usr/bin/mongorestore --uri "mongodb://localhost:27017/db_name?directConnection=true" /data/db/dump
+```
+
 # Wireguard
 ```shell
 wg-quick up wg0
@@ -13,13 +34,13 @@ Options
 sudo apt install openresolv
 ```
 
-#Download logs
+# Download logs
 ```
-scp -i ec2-keypair_filepath.pem ec2-user@ec2-52-196-115-134.ap-northeast-1.compute.amazonaws.com:/data/logs/2023-03-08.log ~/Downloads/
+scp -i ec2-keypair_filepath.pem user@server:/data/logs/2023-03-08.log ~/Downloads/
 ```
 
 
-#Prisma
+# Prisma
 ```
 yarn prisma generate
 yarn prisma db seed
@@ -32,7 +53,7 @@ yarn prisma migrate dev --create-only
 ```
 
 
-#Docker
+# Docker
 ```shell
 docker run --name postgres --restart=always -e POSTGRES_PASSWORD=1234567890 -p 5432:5432 -d postgres
 docker run --name redis --restart=always -d redis
