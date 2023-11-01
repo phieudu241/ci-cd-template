@@ -1,0 +1,162 @@
+def COLOR_MAP = ['SUCCESS': 'good', 'FAILURE': 'danger', 'UNSTABLE': 'danger', 'ABORTED': 'danger']
+
+@NonCPS
+def getChangeString() {
+    MAX_MSG_LEN = 100
+    def changeString = ""
+    echo "Gathering SCM changes"
+    def changeLogSets = currentBuild.rawBuild.changeSets
+    for (int i = 0; i < changeLogSets.size(); i++) {
+        def entries = changeLogSets[i].items
+        for (int j = 0; j < entries.length; j++) {
+            def entry = entries[j]
+            truncated_msg = entry.msg.take(MAX_MSG_LEN)
+            changeString += " - ${truncated_msg} [${entry.author}]\n"
+        }
+    }
+    if (!changeString) {
+        changeString = " - No new changes"
+    }
+    return changeString
+}
+
+pipeline {
+    agent any
+
+    environment {
+        SERVER_USERNAME_DEV = credentials('SERVER_USERNAME_DEV')
+        SERVER_USERNAME_TEST = credentials('SERVER_USERNAME_TEST')
+        SERVER_USERNAME_PRODUCTION = credentials('SERVER_USERNAME_PRODUCTION')
+
+        SERVER_URL_DEV = credentials('SERVER_URL_DEV')
+        SERVER_URL_TEST = credentials('SERVER_URL_TEST')
+        SERVER_URL_PRODUCTION = credentials('SERVER_URL_PRODUCTION')
+
+        SERVER_SSH_KEY_FILE_DEV = credentials('SERVER_SSH_KEY_FILE_DEV')
+        SERVER_SSH_KEY_FILE_TEST = credentials('SERVER_SSH_KEY_FILE_TEST')
+        SERVER_SSH_KEY_FILE_PRODUCTION = credentials('SERVER_SSH_KEY_FILE_PRODUCTION')
+
+        SERVICE_NAME_DEV = credentials('SERVICE_NAME_DEV')
+        SERVICE_NAME_TEST = credentials('SERVICE_NAME_TEST')
+        SERVICE_NAME_PRODUCTION = credentials('SERVICE_NAME_PRODUCTION')
+
+        ENV_DEV = credentials('ENV_DEV')
+        ENV_TEST = credentials('ENV_TEST')
+        ENV_PRODUCTION = credentials('ENV_PRODUCTION')
+
+        APP_URL_DEV = credentials('APP_URL_DEV')
+        APP_URL_TEST = credentials('APP_URL_TEST')
+        APP_URL_PRODUCTION = credentials('APP_URL_PRODUCTION')
+    }
+
+    options {
+        disableConcurrentBuilds()
+    }
+
+    stages {
+        // Select environment
+        // Dev Environment
+        stage('Use Dev Env') {
+            when {
+                branch 'develop'
+            }
+            steps {
+                script {
+                    env.TAG = 'develop'
+                    env.ENV_FILE = "${env.ENV_DEV}"
+                    env.SERVER_USERNAME = "${env.SERVER_USERNAME_DEV}"
+                    env.SERVER_URL = "${env.SERVER_URL_DEV}"
+                    env.SERVER_SSH_KEY_FILE = "${env.SERVER_SSH_KEY_FILE_DEV}"
+                    env.SERVICE_NAME = "${env.SERVICE_NAME_DEV}"
+                    env.APP_URL = "${env.APP_URL_DEV}"
+                }
+
+                echo "BUILD_ENV: dev"
+                echo "TAG: $TAG"
+            }
+        }
+        // -- Test Environment
+        stage('Use Test Env') {
+            when {
+                branch 'test'
+            }
+            steps {
+                script {
+                    env.TAG = 'test'
+                    env.ENV_FILE = "${env.ENV_TEST}"
+                    env.SERVER_USERNAME = "${env.SERVER_USERNAME_TEST}"
+                    env.SERVER_URL = "${env.SERVER_URL_TEST}"
+                    env.SERVER_SSH_KEY_FILE = "${env.SERVER_SSH_KEY_FILE_TEST}"
+                    env.SERVICE_NAME = "${env.SERVICE_NAME_TEST}"
+                    env.APP_URL = "${env.APP_URL_TEST}"
+                }
+
+                echo "BUILD_ENV: test"
+                echo "TAG: $TAG"
+            }
+        }
+        // -- Production Environment
+        stage('Use Production Env') {
+            when {
+                branch 'master'
+            }
+            steps {
+                script {
+                    env.TAG = 'production'
+                    env.ENV_FILE = "${env.ENV_PRODUCTION}"
+                    env.SERVER_NAME = "${env.SERVER_NAME_PRODUCTION}"
+                    env.SERVER_URL = "${env.SERVER_URL_PRODUCTION}"
+                    env.SERVER_SSH_KEY_FILE = "${env.SERVER_SSH_KEY_FILE_PRODUCTION}"
+                    env.SERVICE_NAME = "${env.SERVICE_NAME_PRODUCTION}"
+                    env.APP_URL = "${env.APP_URL_PRODUCTION}"
+                }
+
+                echo "BUILD_ENV: production"
+                echo "TAG: $TAG"
+            }
+        }
+        // Build
+        stage('Build') {
+            when {
+                expression {
+                    return env.DISABLE_BUILD_STEP != 'true';
+                }
+            }
+            parallel {
+                stage('Build App') {
+                    steps {
+                      sh 'chmod +x ./jenkins/scripts/build.sh && ./jenkins/scripts/build.sh'
+                    }
+                }
+            }
+        }
+        // Deploy
+        stage('Deploy') {
+            when {
+                anyOf {
+                    branch 'master'
+                    branch 'test'
+                    branch 'develop'
+                }
+            }
+
+            steps {
+                sh 'chmod +x ./jenkins/scripts/deploy.sh && ./jenkins/scripts/deploy.sh'
+            }
+        }
+        stage('Cleanup') {
+            steps {
+                // sh 'chmod +x ./jenkins/scripts/cleanup.sh && ./jenkins/scripts/cleanup.sh'
+                echo 'skip clean atm'
+            }
+        }
+    }
+
+    post {
+        always {
+            rocketSend channel: '#DP_Diamond_PJ_Deploy',
+                color: COLOR_MAP[currentBuild.currentResult],
+                message: "`YOUR_SERVICE_NAME (${TAG})` - *${currentBuild.currentResult}*\n    Job ${JOB_NAME} build ${BUILD_NUMBER}\n    ${BUILD_URL}\n    ${APP_URL}\n    Changes: \n$changeString"
+        }
+    }
+}
