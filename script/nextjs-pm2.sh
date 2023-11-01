@@ -17,13 +17,13 @@ scp -i $KANJI_TOOL_SSH_KEY_FILE package.json $KANJI_TOOL_REMOTE_SERVER:/$KANJI_T
 scp -i $KANJI_TOOL_SSH_KEY_FILE next.config.js $KANJI_TOOL_REMOTE_SERVER:/$KANJI_TOOL_REMOTE_SERVER_PROJECT_DIR/next.config.js
 
 #Deploy
-ssh $KANJI_TOOL_REMOTE_SERVER "
+ssh $KANJI_TOOL_REMOTE_SERVER '
   cd $KANJI_TOOL_REMOTE_SERVER_PROJECT_DIR
   pm2 stop kanji-tool
   npm install
   rm -r .next
   unzip .next.zip
-  pm2 restart kanji-tool
+  pm2 restart kanji-tool --update-env --time --log-date-format "YYYY-MM-DD HH:mm:ss.SSS"
   pm2 save
-"
+'
 

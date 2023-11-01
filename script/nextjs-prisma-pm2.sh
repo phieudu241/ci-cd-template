@@ -29,7 +29,7 @@ scp -i $PEM_FILE yarn.lock $SERVER_USER@$SERVER_HOST://home/$SERVER_USER/$REMOTE
 scp -i $PEM_FILE next.config.js $SERVER_USER@$SERVER_HOST://home/$SERVER_USER/$REMOTE_SERVER_PROJECT_DIR/next.config.js
 
 #Deploy
-ssh -i $PEM_FILE $SERVER_USER@$SERVER_HOST "
+ssh -i $PEM_FILE $SERVER_USER@$SERVER_HOST '
   set -e
   cd $REMOTE_SERVER_PROJECT_DIR
   pm2 stop $SERVICE
@@ -42,8 +42,8 @@ ssh -i $PEM_FILE $SERVER_USER@$SERVER_HOST "
   unzip prisma.zip
   npx prisma generate
   npx prisma migrate deploy
-  pm2 restart $SERVICE --update-env --time
-"
+  pm2 restart $SERVICE --update-env --time --log-date-format "YYYY-MM-DD HH:mm:ss.SSS"
+'
 
 end_time=`date +%s`
 runtime=$( echo "$end_time - $start_time" | bc -l )
